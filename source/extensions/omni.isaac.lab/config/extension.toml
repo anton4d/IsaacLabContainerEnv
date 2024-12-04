@@ -23,7 +23,9 @@ requirements = [
     "toml",
     "hidapi",
     "gymnasium==0.29.0",
-    "trimesh"
+    "trimesh",
+    "paho-mqtt",
+    "paramiko"
 ]
 
 modules = [
@@ -33,7 +35,9 @@ modules = [
     "toml",
     "hid",
     "gymnasium",
-    "trimesh"
+    "trimesh",
+    "paho-mqtt",
+    "paramiko"
 ]
 
 use_online_index=true

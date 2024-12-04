@@ -33,8 +33,9 @@ INSTALL_REQUIRES = [
     "pyglet<2",
     # image processing
     "transformers",
-    "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang",
+    "einops",
+    "paho-mqtt",
+    "paramiko"
 ]
 
 PYTORCH_INDEX_URL = ["https://download.pytorch.org/whl/cu118"]
