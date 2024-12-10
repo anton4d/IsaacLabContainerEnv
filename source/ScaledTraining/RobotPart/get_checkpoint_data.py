@@ -14,7 +14,7 @@ class log_tensorboard_data:
         pass
 
 
-    def parse_tensorboard(self, path, reward_dict):
+    def parse_tensorboard(self, path, input):
         """returns a dictionary of pandas dataframes for each requested scalar"""
         ea = event_accumulator.EventAccumulator(
             path,
@@ -24,24 +24,24 @@ class log_tensorboard_data:
         print(ea.Tags()["scalars"])
         # make sure the scalars are in the event accumulator tags
 
-        if not(reward_dict in ea.Tags()["scalars"]):
+        if not(input in ea.Tags()["scalars"]):
             print("WARNING: Reward Total is not yet calculated. using instantanous reward instead")
             
-        reward_dict = 'Reward / Instantaneous reward (mean)'
+            self.reward_dict = 'Reward / Instantaneous reward (mean)'
 
 
         
-        return {reward_dict: pd.DataFrame(ea.Scalars(reward_dict))}
+        return {self.reward_dict: pd.DataFrame(ea.Scalars(self.reward_dict))}
 
 
     def get_tensorboard_data(self, path):
 
-        reward_dict = ['Reward / Total reward (mean)']
+        self.reward_dict = ['Reward / Total reward (mean)']
 
-        data = self.parse_tensorboard(path, reward_dict)
+        data = self.parse_tensorboard(path, self.reward_dict)
         
         
-        reward_val = np.array(data['Reward / Total reward (mean)'].get('value'))
+        reward_val = np.array(data[self.reward_dict].get('value'))
         reward_val_mean = np.mean(reward_val)
         reward_val_std = np.std(reward_val)
 

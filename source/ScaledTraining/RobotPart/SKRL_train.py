@@ -15,7 +15,10 @@ a more user-friendly way.
 import argparse
 import sys
 import time
-
+import shutil
+from datetime import datetime
+from dotenv import load_dotenv
+from SoftwarePart.MoveModel import moveModel
 from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
@@ -24,13 +27,13 @@ parser.add_argument("--load_model", type=str, default="", help="Load a pre-train
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
 parser.add_argument("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
-parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
+parser.add_argument("--num_envs", type=int, default=700, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default="Isaac-Velocity-Rough-Anymal-C-v0", help="Name of the task.")
-parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
+parser.add_argument("--seed", type=int, default=-1, help="Seed used for the environment")
 parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
-parser.add_argument("--max_iterations", type=int, default=100, help="RL Policy training iterations.")
+parser.add_argument("--max_iterations", type=int, default=50, help="RL Policy training iterations.")
 parser.add_argument(
     "--ml_framework",
     type=str,
@@ -67,6 +70,7 @@ import gymnasium as gym
 import os
 import random
 from datetime import datetime
+import logging
 
 import skrl
 from packaging import version
@@ -105,7 +109,6 @@ agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm in ["ppo"] else f"sk
 
 @hydra_task_config(args_cli.task, agent_cfg_entry_point)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
-
     max_iterations = args_cli.max_iterations
     steps_per_iteration = agent_cfg["agent"]["rollouts"]
     time_steps = max_iterations * steps_per_iteration
@@ -117,6 +120,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+
+    env_cfg.scene.terrain.terrain_generator.curriculum = False
 
     # multi-gpu training config
     if args_cli.distributed:
@@ -193,11 +198,16 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     time_end = time.time()
 
     time_delta = time_end - time_start
+    logging.info("Training Done!")
+    logging.info(f"time delta: {time_delta} seconds --- Trained iterations: {max_iterations*steps_per_iteration}")
 
-    print("Training Done!")
-    print(f"time delta: {time_delta} seconds --- Trained iterations: {max_iterations*steps_per_iteration}")
+    logging.info(f"time per iteration: {time_delta/time_steps}")
+    BestModelPath = os.path.join(log_dir, "checkpoints/best_agent.pt")
+    logging.info(f"Here is the best model path {BestModelPath}")
+    moveModel(BestModelPath)
+    shutil.rmtree(log_dir)
 
-    print(f"time per iteration: {time_delta/time_steps}")
+   
 
 
 if __name__ == "__main__":

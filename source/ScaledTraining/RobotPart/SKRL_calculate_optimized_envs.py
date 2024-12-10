@@ -15,8 +15,7 @@ a more user-friendly way.
 import argparse
 import sys
 import time
-from get_checkpoint_data import log_tensorboard_data
-
+import dotenv
 
 from omni.isaac.lab.app import AppLauncher
 
@@ -32,7 +31,7 @@ parser.add_argument("--seed", type=int, default=None, help="Seed used for the en
 parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
-parser.add_argument("--max_iterations", type=int, default=50, help="RL Policy training iterations.")
+parser.add_argument("--max_iterations", type=int, default=10, help="RL Policy training iterations.")
 parser.add_argument(
     "--ml_framework",
     type=str,
@@ -50,7 +49,7 @@ parser.add_argument(
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
+
 args_cli, hydra_args = parser.parse_known_args()
 
 if args_cli.video:
@@ -60,6 +59,10 @@ if args_cli.video:
 sys.argv = [sys.argv[0]] + hydra_args
 
 # launch omniverse app
+
+"Set headless to True"
+args_cli.headless = True
+
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
@@ -106,14 +109,37 @@ agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm in ["ppo"] else f"sk
 
 
 @hydra_task_config(args_cli.task, agent_cfg_entry_point)
-def run_eval(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
+def get_optimized_env(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
 
+    options_num_envs = [
+                        100,
+                        200,
+                        300,
+                        400,
+                        500,
+                        600,
+                        700,
+                        800,
+                        900,
+                        1000,
+                        1100,
+                        1200,
+                        1300,
+                        1400,
+                        1500,
+                        1600,
+                        1700,
+                        1800,
+                        1900,
+                        2000
+                        ]
 
-    trainer_name = "SKRL_eval"
+    args_cli.num_envs = 700
+    args_cli.max_iterations = 100
 
     max_iterations = args_cli.max_iterations
     steps_per_iteration = agent_cfg["agent"]["rollouts"]
-    time_steps = max_iterations * steps_per_iteration
+    time_steps = args_cli.max_iterations * steps_per_iteration
 
 
     print("args_cli.task: ", args_cli.task)
@@ -134,9 +160,8 @@ def run_eval(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, 
     agent_cfg["trainer"]["close_environment_at_exit"] = False
 
 
-    # randomly sample a seed if seed = -1
-    if args_cli.seed == -1:
-        args_cli.seed = random.randint(0, 1000000)
+    # Run with determined seed to ensure identical testing throughout the iterations.
+    args_cli.seed = 42
 
     # set the agent and environment seed from command line
     # note: certain randomization occur in the environment initialization so we set the seed here
@@ -145,26 +170,39 @@ def run_eval(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, 
 
 
     # specify directory for logging experiments
-    log_root_path = os.path.join("logs", trainer_name, agent_cfg["agent"]["experiment"]["directory"])
+    log_root_path = os.path.join("logs", "skrl", agent_cfg["agent"]["experiment"]["directory"], f"{args_cli.num_envs}_envs")
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
     # specify directory for logging runs: {time-stamp}_{run_name}
     log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + f"_{algorithm}_{args_cli.ml_framework}"
     if agent_cfg["agent"]["experiment"]["experiment_name"]:
         log_dir += f'_{agent_cfg["agent"]["experiment"]["experiment_name"]}'
-
     # set directory into agent config
     agent_cfg["agent"]["experiment"]["directory"] = log_root_path
     agent_cfg["agent"]["experiment"]["experiment_name"] = log_dir
     # update log_dir
     log_dir = os.path.join(log_root_path, log_dir)
 
+    # dump the configuration into log-directory
+    dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
+    dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
+    dump_pickle(os.path.join(log_dir, "params", "env.pkl"), env_cfg)
+    dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), agent_cfg)
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
     
-
-
+    # wrap for video recording
+    if args_cli.video:
+        video_kwargs = {
+            "video_folder": os.path.join(log_dir, "videos", "train"),
+            "step_trigger": lambda step: step % args_cli.video_interval == 0,
+            "video_length": args_cli.video_length,
+            "disable_logger": True,
+        }
+        print("[INFO] Recording videos during training.")
+        print_dict(video_kwargs, nesting=4)
+        env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv) and algorithm in ["ppo"]:
@@ -174,59 +212,92 @@ def run_eval(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, 
     env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)  # same as: `wrap_env(env, wrapper="auto")`
 
 
-
     # configure and instantiate the skrl runner
     # https://skrl.readthedocs.io/en/latest/api/utils/runner.html
     runner = Runner(env, agent_cfg)
     
 
     # Load checkpoint into robot
+    # checkpoint_address = "isaacLab_Training/logs/skrl/anymal_c_rough/2024-11-06_11-37-38_ppo_torch/checkpoints/best_agent.pt"
     if not(args_cli.load_model == ""):
         checkpoint_address = args_cli.load_model
         checkpoint_address = os.path.abspath(checkpoint_address)
 
         runner._agent.load(checkpoint_address)
-    else:
-        print("WARNING: No model added to training")
-        # exit()
 
 
+    time_start = time.time()
     # run training
-    runner.run(mode="eval")
+    runner.run()
 
     # close the simulator
     env.close()
 
+    # Time per iteration 0.05712248702843984 -> 700 envs
+    # If less time is used, then envs can increase, if more time is used, then envs should decrease.
 
-    if not(args_cli.load_model == ""):
-        print("Address of the model checkpoint: ", checkpoint_address)
+
+    # --- Environment: 400 ---
+    # time per iteration: 0.04969497968753179
+        
+
+    #  --- Environment: 1000 ---
+
+    # time per iteration: 0.06493301073710124
+
+    min_time = 0.0423
+    max_time = 0.0887
+    delta_time = max_time - min_time
 
 
-    folder_string = os.listdir(log_dir)
-    event_log_name = ""
+    Below_scale = False
+    Above_scale = False
 
-    for name in folder_string:
-        if name.startswith("events."):
-            event_log_name = name  # Output: something_else
+    time_end = time.time()
+
+    time_delta = time_end - time_start 
+
+    time_per_iteration = time_delta/time_steps
+
+    in_scale_value = time_per_iteration - min_time
+
+    ratio_val = in_scale_value / delta_time
+
+    if ratio_val < 0:
+        Below_scale = True
+    
+    if ratio_val > 1:
+        Above_scale = True
+
+
+    ratio_val = max(0, min(1, ratio_val)) # Procentage clamped between 0 and 1
+    ratio_val = 1 - ratio_val # Invert the ratio value to get the correct estimation.
+    
+
+    int_ratio_val = round(ratio_val*len(options_num_envs))
+
+    # Choose the precentage value that is closest to the ratio_val
+
 
     
-    if event_log_name == "":
-        print("ERROR: No event log found. Exiting.")
-        exit()
+    best_envs = options_num_envs[int_ratio_val]
 
-    events_log_address = log_dir + "/" + event_log_name
-    print("directory of test results: ", events_log_address)
+    print(f"time per iteration: {time_per_iteration}")
+    print("Estimated_best_envs: ", best_envs)
 
-    log_obj = log_tensorboard_data()
+    dotenvFile = dotenv.find_dotenv()
+    dotenv.load_dotenv(dotenvFile)
+    dotenv.set_key(dotenvFile, "ENVS", f"{best_envs}")
+    if Below_scale:
+        print("WARNING: The estimated value hit the lower bound, computer not within the scale.")
+    
+    if Above_scale:
+        print("WARNING: The estimated value hit the upper bound, computer not within the scale.")
 
-    reward_mean, reward_std = log_obj.get_tensorboard_data(events_log_address)
-
-    print("reward mean - ", reward_mean)
-    print("reward std - ", reward_std)
 
 
 if __name__ == "__main__":
     # run the main function
-    run_eval()
+    get_optimized_env()
     # close sim app
     simulation_app.close()

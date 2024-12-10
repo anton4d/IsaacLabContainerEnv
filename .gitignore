@@ -57,3 +57,8 @@ _build
 **/runs/*
 **/logs/*
 **/recordings/*
+
+#pt files
+*.pt*
+# env files
+*.env*
