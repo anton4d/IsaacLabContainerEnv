@@ -21,7 +21,7 @@ def moveModel(source_path):
     current_time = datetime.now().strftime('%Y-%m-%d-%H-%M')
 
 
-    newFilename = f"{username}{current_time}.pt"
+    newFilename = f"{username}_{current_time}.pt"
     dotenv.set_key(dotenvFile,"SENDABLMODEL",newFilename)
 
 
