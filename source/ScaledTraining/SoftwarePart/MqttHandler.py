@@ -104,11 +104,11 @@ def DownloadFile(fileName):
     if not os.path.exists(ModelPath):
         os.makedirs(ModelPath)
         print(f"Directory created: {ModelPath}")
-    NewModelDir = os.path.join("NewModel")
+    NewModelDir = os.path.join(ModelPath,"NewModel")
     if not os.path.exists(NewModelDir):
         os.makedirs(NewModelDir)
         print(f"Directory created: {NewModelDir}")
-    BestModelPath = os.path.join(ModelPath,NewModelDir,"best_agent.pt")
+    BestModelPath = os.path.join(NewModelDir,"best_agent.pt")
     SFTPHost = os.getenv("SFTPHost")
     SFTPPORT = int(os.getenv("SFTP_PORT"))
     SFTPUSERNAME = os.getenv("SFTP_USER")
