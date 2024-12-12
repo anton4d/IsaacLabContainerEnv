@@ -29,6 +29,17 @@ def moveModel(source_path):
     destinationBestModel_Path = os.path.join(BestModelPath, "best_agent.pt")
 
     try:
+                    
+        if not os.path.exists(ModelPath):
+            os.makedirs(ModelPath)
+            print(f"Directory created: {ModelPath}")
+        if not os.path.exists(ArchiveModelpath):
+            os.makedirs(ArchiveModelpath)
+            print(f"Directory created: {ArchiveModelpath}")
+        if not os.path.exists(BestModelPath):
+            os.makedirs(BestModelPath)
+            print(f"Directory created: {BestModelPath}")            
+
         # Move and rename the file
         shutil.copy(source_path, destinationArchive_path)
         logging.info(f"File copied and renamed to: {destinationArchive_path}")

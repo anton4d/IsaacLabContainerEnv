@@ -69,15 +69,18 @@ def call_test():
         return
     
     try:
+        models_path = os.path.abspath("Models")
+        modelPath = os.path.join(models_path, "CurrentBestModel/best_agent.pt")
         test_performance_path = os.path.abspath("RobotPart/test_performance.py")
         
-        logging.info(f"Starting the test performance subprocess with envs, Seed {Seed}, envs {ENVS}, MaxIteration {maxIterations}")
+        logging.info(f"Starting the test performance subprocess with model {modelPath} with envs, Seed {Seed}, envs {ENVS}, MaxIteration {maxIterations}")
         
         subprocess.run([
             sys.executable, test_performance_path,
             '--headless',
             f'--seed={Seed}',
             f'--max_iterations={maxIterations}',
+            f'--load_model={modelPath}',
             f'--num_envs={ENVS}'
         ], check=True)
         
@@ -104,7 +107,7 @@ def main():
     log_filepath = setup_logging()
     logging.info("Starting main loop")
 
-    call_optimized_envs()
+    #call_optimized_envs()
 
     while True:
         dotenvFile = dotenv.find_dotenv()
@@ -112,7 +115,7 @@ def main():
         
         logging.info("Calling training process.")
         call_train(dotenvFile)
-        
+        time.sleep(2)
         logging.info("Calling test process.")
         call_test()
         

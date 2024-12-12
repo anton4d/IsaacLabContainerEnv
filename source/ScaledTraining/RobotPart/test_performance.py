@@ -109,7 +109,7 @@ agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm in ["ppo"] else f"sk
 
 @hydra_task_config(args_cli.task, agent_cfg_entry_point)
 def run_eval(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
-
+    print(f"loaded mode path {args_cli.load_model}")
 
     trainer_name = "SKRL_eval"
 

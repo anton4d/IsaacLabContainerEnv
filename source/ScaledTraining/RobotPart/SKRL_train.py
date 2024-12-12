@@ -33,7 +33,7 @@ parser.add_argument("--seed", type=int, default=-1, help="Seed used for the envi
 parser.add_argument(
     "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
 )
-parser.add_argument("--max_iterations", type=int, default=50, help="RL Policy training iterations.")
+parser.add_argument("--max_iterations", type=int, default=10, help="RL Policy training iterations.")
 parser.add_argument(
     "--ml_framework",
     type=str,
