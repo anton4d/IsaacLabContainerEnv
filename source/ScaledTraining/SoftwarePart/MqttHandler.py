@@ -106,7 +106,7 @@ def DownloadFile(fileName):
         print(f"Directory created: {ModelPath}")
     NewModelDir = os.path.join("NewModel")
     if not os.path.exists(NewModelDir):
-        os.makedirs(ModelPath)
+        os.makedirs(NewModelDir)
         print(f"Directory created: {NewModelDir}")
     BestModelPath = os.path.join(ModelPath,NewModelDir,"best_agent.pt")
     SFTPHost = os.getenv("SFTPHost")
