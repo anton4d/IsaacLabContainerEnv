@@ -101,7 +101,14 @@ def handle_startTrain(client,Username, message):
 def DownloadFile(fileName):
     ModelPath = os.path.join("Models")
     ModelPath = os.path.abspath(ModelPath)
-    BestModelPath = os.path.join(ModelPath,f"NewModel/best_agent.pt")
+    if not os.path.exists(ModelPath):
+        os.makedirs(ModelPath)
+        print(f"Directory created: {ModelPath}")
+    NewModelDir = os.path.join("NewModel")
+    if not os.path.exists(NewModelDir):
+        os.makedirs(ModelPath)
+        print(f"Directory created: {NewModelDir}")
+    BestModelPath = os.path.join(ModelPath,NewModelDir,"best_agent.pt")
     SFTPHost = os.getenv("SFTPHost")
     SFTPPORT = int(os.getenv("SFTP_PORT"))
     SFTPUSERNAME = os.getenv("SFTP_USER")
