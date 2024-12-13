@@ -7,26 +7,43 @@ import subprocess
 import shutil
 import sys
 from SoftwarePart.SftpHandler import Download_file_from_sftp
+import logging
+
+def setup_logging():
+    log_filename = "TrainingloopAndMqtt.log"  
+    log_filepath = os.path.join("logs", log_filename)
+    
+
+    if not os.path.exists("logs"):
+        os.makedirs("logs")
+    
+    logging.basicConfig(filename=log_filepath, level=logging.INFO,
+                        format='%(asctime)s - %(levelname)s - %(message)s')
+    
+    return log_filepath
+
 
 training_process = None
 Username = None
 def on_connect(client, userdata, flags, rc):
-    print("Connect received with code %s." % rc)
+    logging.info("Connect received with code %s." % rc)
     client.subscribe(f"{Username}/Commands", qos=1)
     client.subscribe('all/Commands', qos=1)
+    payload = f"NewUser|{Username}"
+    client.publish("Server/Commands", payload=payload, qos=1)
 
 
 
 def on_publish(client, userdata, mid):
-    print("mid: " + str(mid))
+    logging.info("mid: " + str(mid))
 
 def on_subscribe(client, userdata, mid, granted_qos):
-    print("Subscribed: " + str(mid) + " " + str(granted_qos))
+    logging.info("Subscribed: " + str(mid) + " " + str(granted_qos))
 
 def on_message(client, userdata, msg):
     
     message = msg.payload.decode('utf-8')
-    print(f"Received message on topic {msg.topic}: {message}")
+    logging.info(f"Received message on topic {msg.topic}: {message}")
     handle_message(client, message)
 
 def handle_message(client, message):
@@ -39,34 +56,34 @@ def handle_message(client, message):
         else:
             handler(client, Username, Command)
     except ValueError:
-        print(f"Malformed message: {message}")
+        logging.error(f"Malformed message: {message}")
     except Exception as e:
-        print(f"Unexpected error: {e}")
+        logging.error(f"Unexpected error: {e}")
 
 def handle_stopTrain(client,Username, message):
     global training_process
     if training_process:
-        print(f"Stopping the training loop with data: {message}")
+        logging.info(f"Stopping the training loop with data: {message}")
         training_process.terminate()
         training_process.wait()  # Ensure the process is fully terminated
         training_process = None
-        print("Training loop stopped.")
-        payload = f"LoopStoped|"
+        logging.info("Training loop stopped.")
+        payload = f"LoopStopped|" #Skal fixes anton
         client.publish(f"Server/{Username}/Commands/Status", payload=payload, qos=1)
     else:
-        print("No training process is running.")
-        payload = f"LoopStope|"
-        client.publish(f"Server/{Username}/Commands/Status", payload=payload, qos=1)
+        logging.info("No training process is running.")
+        payload = f"LoopStopped|LoopIsNotRunning"
+        client.publish(f"Server/{Username}/Commands/Warning", payload=payload, qos=1)
 
 
 def StartTrain(client, Username, message):
     global training_process
     if training_process and training_process.poll() is None:
-        print("Training process is already running.")
+        logging.info("Training process is already running.")
         return
 
     try:
-        print(f"Starting the training loop with data: {message}")
+        logging.info(f"Starting the training loop with data: {message}")
         LoopPath = os.path.abspath("Loop.py")
 
         if not os.path.isfile(LoopPath):
@@ -78,20 +95,20 @@ def StartTrain(client, Username, message):
         )
 
         if training_process.poll() is None:
-            print(f"Training loop started successfully.")
+            logging.info(f"Training loop started successfully.")
             payload = "LoopStarted|"
             client.publish(f"Server/{Username}/Commands/Status", payload=payload, qos=1)
         else:
-            print("Failed to start the training loop.")
+            logging.error("Failed to start the training loop.")
             payload = "LoopError|Failed to start the training loop."
             client.publish(f"Server/{Username}/Commands/Error", payload=payload, qos=1)
 
     except FileNotFoundError as fnf_error:
-        print(f"File error: {fnf_error}")
+        logging.error(f"File error: {fnf_error}")
         payload = f"FileError|File error: {fnf_error}"
         client.publish(f"Server/{Username}/Commands/Error", payload=payload, qos=1)
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        logging.error(f"An unexpected error occurred: {e}")
         payload = f"UxcepError|An unexpected error occurred: {e}"
         client.publish(f"Server/{Username}/Commands/Error", payload=payload, qos=1)
 
@@ -106,17 +123,17 @@ def DownloadFile(fileName):
     ModelPath = os.path.abspath(ModelPath)
     if not os.path.exists(ModelPath):
         os.makedirs(ModelPath)
-        print(f"Directory created: {ModelPath}")
+        logging.info(f"Directory created: {ModelPath}")
     NewModelDir = os.path.join(ModelPath,"NewModel")
     if not os.path.exists(NewModelDir):
         os.makedirs(NewModelDir)
-        print(f"Directory created: {NewModelDir}")
+        logging.info(f"Directory created: {NewModelDir}")
     BestModelPath = os.path.join(NewModelDir,"best_agent.pt")
     SFTPHost = os.getenv("SFTPHost")
     SFTPPORT = int(os.getenv("SFTP_PORT"))
     SFTPUSERNAME = os.getenv("SFTP_USER")
     SFTPPASSWORD = os.getenv("SFTP_PASSWORD")
-    print(f"try to download file{fileName}")
+    logging.info(f"try to download file{fileName}")
     Download_file_from_sftp(SFTPHost,SFTPPORT, SFTPUSERNAME, SFTPPASSWORD, BestModelPath, fileName)
 
 def handle_newSetupData(client,Username, message):
@@ -130,17 +147,17 @@ def handle_newSetupData(client,Username, message):
         dotenv.set_key(dotenvFile, "NewModel", "True")  
         DownloadFile(fileName)
     except ValueError:
-        print(f"Malformed data in message data: {message}")
+        logging.error(f"Malformed data in message data: {message}")
         payload = f"SetupError|Malformed data in message data: {message}"
         client.publish(f"Server/{Username}/Commands/Error", payload=payload, qos=1)
     finally:
         payload = f"SetupDataSuccesfull|"
         client.publish(f"Server/{Username}/Commands/Status", payload=payload, qos=1)
 
-    print(f"The env will get new data with the data {message}")
+    logging.info(f"The env will get new data with the data {message}")
 
 def handle_newModel(client, Username, message):
-    print(f"The training loop has been given a new model with data {message}")
+    logging.info(f"The training loop has been given a new model with data {message}")
     dotenvFile = dotenv.find_dotenv()
     dotenv.set_key(dotenvFile, "NewModel", "True")
     DownloadFile(message)  
@@ -157,20 +174,20 @@ def handle_setup(client,Username, message):
         dotenv.set_key(dotenvFile, "NewModel", "True")  
         LoopPath = os.path.join("Loop.py")
         LoopPath = os.path.abspath(LoopPath)
-        print(LoopPath)
+        logging.info(LoopPath)
 
         DownloadFile(fileName)
         StartTrain(client,Username, message)
     except ValueError:
-        print(f"Malformed data in message data: {message}")
+        logging.error(f"Malformed data in message data: {message}")
         payload = f"LoopError|Malformed data in message data: {message}"
         client.publish(f"Server/{Username}/Commands/Error", payload=payload, qos=1)
 
-    print(f"The training loop will be setup and started with data {message}")
+    logging.info(f"The training loop will be setup and started with data {message}")
 
 
 def handle_unknown(client,Username, command):
-        print(f"Unknown command: {command}")
+        logging.error(f"Unknown command: {command}")
         payload = f"Unknown|{command}"
         client.publish(f"Server/{Username}/Commands/Error", payload=payload, qos=1)
 
@@ -184,6 +201,7 @@ command_dispatcher = {
         }
 
 def main():
+    log_filepath = setup_logging()
     global Username
     dotenvFile = dotenv.find_dotenv()
     dotenv.load_dotenv(dotenvFile)
@@ -208,8 +226,7 @@ def main():
 
 
 
-    payload = f"NewUser|{Username}"
-    client.publish("Server/Commands", payload=payload, qos=1)
+
 
     client.loop_forever()
 
