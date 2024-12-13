@@ -12,6 +12,9 @@ training_process = None
 Username = None
 def on_connect(client, userdata, flags, rc):
     print("Connect received with code %s." % rc)
+    client.subscribe(f"{Username}/Commands", qos=1)
+    client.subscribe('all/Commands', qos=1)
+
 
 
 def on_publish(client, userdata, mid):
@@ -203,8 +206,7 @@ def main():
     client.on_publish = on_publish
 
 
-    client.subscribe(f"{Username}/Commands", qos=1)
-    client.subscribe('all/Commands', qos=1)
+
 
     payload = f"NewUser|{Username}"
     client.publish("Server/Commands", payload=payload, qos=1)
